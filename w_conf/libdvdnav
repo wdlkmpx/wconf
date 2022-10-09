@@ -1,0 +1,87 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_LIBDVDNAV_IS_OPTIONAL=yes [show --disable-libdvdnav in --help msg]
+# - W_LIBDVDNAV_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option libdvdnav LIBDVDNAV
+#=======================================
+
+libdvdnav_pc_pkg="dvdnav"
+
+
+opt_print_libdvdnav()
+{
+	if [ "$W_LIBDVDNAV_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-libdvdnav           do not build LIBDVDNAV support (autodetect)"
+	fi
+}
+
+
+opt_configure_libdvdnav()
+{
+	if [ "$W_LIBDVDNAV_IS_OPTIONAL" = "yes" ] ; then
+		enable_libdvdnav=check
+	else
+		enable_libdvdnav=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-libdvdnav)  enable_libdvdnav=yes ;;
+		--disable-libdvdnav) enable_libdvdnav=no ;;
+		esac
+	done
+}
+
+
+opt_check_libdvdnav()
+{
+	if [ "$enable_libdvdnav" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$LIBDVDNAV_CFLAGS" ] || [ -n "$LIBDVDNAV_LIBS" ] ; then
+		echo "Checking for LIBDVDNAV... \$LIBDVDNAV_CFLAGS/\$LIBDVDNAV_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${libdvdnav_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_LIBDVDNAV_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ]  && [ -z "${W_LIBDVDNAV_MIN_VERSION}" ] ; then
+			w_check_header_and_libs dvdnav/dvdnav.h -ldvdnav
+			if [ $? -eq 0 ] ; then
+				#LIBDVDNAV_CFLAGS=...
+				LIBDVDNAV_LIBS="-ldvdnav"
+				pcpkg=configure
+			fi
+		fi
+		#--
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_libdvdnav" = "yes" ] ; then
+				exit_error "pkg-config: libdvdnav was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			LIBDVDNAV_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			LIBDVDNAV_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have LIBDVDNAV"
+	config_mk_flags="$config_mk_flags LIBDVDNAV"
+}
+

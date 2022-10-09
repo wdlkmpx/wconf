@@ -1,0 +1,60 @@
+#!/bin/sh
+W_ALSA_IS_OPTIONAL=yes
+#W_ALSA_MIN_VERSION=
+. w_conf/alsa
+
+W_GLIB_IS_OPTIONAL=yes
+#W_GLIB_MIN_VERSION=
+. w_conf/glib
+
+W_GTHREAD_IS_OPTIONAL=yes
+#W_GTHREAD_MIN_VERSION=
+. w_conf/gthread
+
+W_LIBCDIO_IS_OPTIONAL=yes
+#W_LIBCDIO_MIN_VERSION=
+. w_conf/libcdio
+
+W_LIBDVDNAV_IS_OPTIONAL=yes
+#W_LIBDVDNAV_MIN_VERSION=
+. w_conf/libdvdnav
+
+W_LIBDVDREAD_IS_OPTIONAL=yes
+#W_LIBDVDREAD_MIN_VERSION=
+. w_conf/libdvdread
+
+W_LIBJPEG_IS_OPTIONAL=yes
+#W_LIBJPEG_MIN_VERSION=
+. w_conf/libjpeg
+
+W_LIBXML2_IS_OPTIONAL=yes
+#W_LIBXML2_MIN_VERSION=
+. w_conf/libxml2
+
+W_NCURSES_IS_OPTIONAL=yes
+#W_NCURSES_MIN_VERSION=
+. w_conf/ncurses
+
+W_OPENSSL_IS_OPTIONAL=yes
+#W_OPENSSL_MIN_VERSION=
+. w_conf/openssl
+
+W_POPT_IS_OPTIONAL=yes
+#W_POPT_MIN_VERSION=
+. w_conf/popt
+
+W_PULSEAUDIO_IS_OPTIONAL=yes
+#W_PULSEAUDIO_MIN_VERSION=
+. w_conf/pulse
+
+W_PULSEAUDIO_IS_OPTIONAL=yes
+#W_PULSEAUDIO_MIN_VERSION=
+. w_conf/pulse_glib
+
+W_READLINE_IS_OPTIONAL=yes
+#W_READLINE_MIN_VERSION=
+. w_conf/readline
+
+W_ZLIB_IS_OPTIONAL=yes
+#W_ZLIB_MIN_VERSION=
+. w_conf/zlib

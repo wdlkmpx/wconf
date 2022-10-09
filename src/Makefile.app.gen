@@ -1,0 +1,115 @@
+#!/bin/sh
+# http://unlicense.org/
+
+APP=$1
+APPS=${APP}
+APPS_INST=''
+APPS_NOINST=''
+
+#=========================================================
+# try to determine library name from Makefile.am
+# first fix it to avoid \ (keep all assignments in a single line)
+
+if [ -f Makefile.am ] ; then
+	echo "Using Makefile.am to determine apps"
+	APPS_INST=$(grep '^bin_PROGRAMS' Makefile.am | cut -f 2- -d '=')
+	APPS_NOINST=$(grep '^noinst_PROGRAMS' Makefile.am | cut -f 2- -d '=')
+	if [ -z "$APPS_INST" ] && [ -z "$APPS_NOINST" ] ; then
+		echo "Makefile.am doesn't contain 'bin_PROGRAMS='"
+		exit 1
+	fi
+	echo $APPS_INST
+	echo $APPS_NOINST
+	APPS=$(echo $APPS_INST $APPS_NOINST) # remove spaces
+	for i in $APPS
+	do
+		iOBJS=$(grep "^${i}_SOURCES" Makefile.am | sed "s%\.c%.o%g" | cut -f 2- -d '=')
+		iCFLAGS=$(grep "^${i}_CFLAGS" Makefile.am | cut -f 2- -d '=')
+		iLDFLAGS=$(grep "^${i}_LDADD" Makefile.am | cut -f 2- -d '=')
+		if [ -z "$iOBJS" ] ; then
+			iOBJS=${i}.c # may be a single source file
+		fi
+		APPS_OBJS="${APPS_OBJS}
+${i}_cflags = \${CFLAGS} ${iCFLAGS}
+${i}_ldflags = \${LDFLAGS} \${LIBS} ${iLDFLAGS}
+${i}_objs = ${iOBJS}"
+		APPS_BUILD="${APPS_BUILD}
+${i}"': $('${i}'_objs)
+	$(CC) $('${i}'_cflags) $('${i}'_objs) -o $@ $('${i}'_ldflags)
+'
+	done
+	LDFLAGS=$(grep '^LDADD' Makefile.am | cut -f 2- -d '=')
+fi
+
+if [ -n "$APPS_INST" ] ; then
+	APPS_DO_INSTALL='
+	mkdir -p $(DESTDIR)$(bindir)
+	install -c $(APPS_INST) $(DESTDIR)$(bindir)'
+	for i in $APPS_INST
+	do
+		APPS_DO_UNINSTALL="${APPS_DO_UNINSTALL}"'
+	rm -f $(DESTDIR)$(bindir)/'"${i}"
+	done
+fi
+
+#=========================================================
+
+if [ -z "$APPS" ] ; then
+	printf "\$APPS is empty\n"
+	exit 1
+fi
+
+INCLUDES=''
+CONFIG_MK=''
+if [ -f ../configure ] || [ -f ../configure.ac ] ; then
+	CONFIG_MK='include ../config.mk'
+	INCLUDES='-I..'
+elif [ -f ../../configure ] || [ -f ../../configure.ac ] ; then
+	CONFIG_MK='include ../../config.mk'
+	INCLUDES='-I.. -I../..'
+elif [ -f ../../../configure ] || [ -f ../../../configure.ac ] ; then
+	CONFIG_MK='include ../../../config.mk'
+	INCLUDES='-I.. -I../.. -I../../..'
+fi
+
+#if [ -z "$OBJS" ] ; then
+#	OBJS=$(ls *.c | sed "s%\.c%.o%g" | tr "\n" " ")
+#fi
+
+
+#=========================================================
+#                create Makefile
+#=========================================================
+
+(
+
+echo "${CONFIG_MK}"'
+
+APPS  = '${APPS}'
+APPS_INST  = '${APPS_INST}'
+
+# ls *.c | sed "s%\.c%.o%g" | tr "\n" " " >> Makefile
+'"${APPS_OBJS}"'
+
+LDFLAGS += '${LDFLAGS}'
+#CPPFLAGS += '${INCLUDES}'
+CFLAGS += '${INCLUDES}'
+LIBS   += 
+
+all: $(APPS)
+'"${APPS_BUILD}"'
+strip: $(APPS)
+	$(STRIP) $(APPS)
+
+distclean: clean
+
+clean:
+	rm -f *.o *~ $(APPS)
+
+install: all '"${APPS_DO_INSTALL}"'
+
+install-strip: strip install
+
+uninstall: '"${APPS_DO_UNINSTALL}"'
+'
+) > Makefile

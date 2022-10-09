@@ -1,0 +1,121 @@
+#!/bin/sh
+# http://unlicense.org/
+
+if [ -d "$1" ] ; then
+	# directory exists, must cd
+	cd $1
+	if [ -n "$2" ] ; then
+		# second param is the APP
+		APP=$2
+	else
+		# no second param, assume $1 is the app
+		APP=$(echo $1 | tr -d '/')
+	fi
+
+else
+	APP=$1
+fi
+
+#=========================================================
+# try to determine library name from Makefile.am
+# first fix it to avoid \ (keep all assignments in a single line)
+
+if [ -f Makefile.am ] ; then
+	echo "Using Makefile.am to determine program name"
+	if ! grep '^bin_PROGRAMS' Makefile.am ; then
+		echo "Makefile.am doesn't contain 'bin_PROGRAMS='"
+		exit 1
+	fi
+	programs=$(grep '^bin_PROGRAMS' Makefile.am | cut -f 2- -d '=')
+	if [ -z "$programs" ] ; then
+		echo "Error getting program name"
+		exit 1
+	fi
+	if [ $(echo $programs | wc -w) -gt 1 ] ; then
+		echo "Only 1 program is allowed"
+		exit 1
+	fi
+	# remove spaces from $programs
+	APP=$(echo $programs)
+	OBJS=$(grep '_SOURCES' Makefile.am | sed "s%\.c%.o%g" | cut -f 2- -d '=')
+	LDFLAGS=$(grep '^LDADD' Makefile.am | cut -f 2- -d '=')
+	LDFLAGS_APP=$(grep "^${APP}_LDADD" Makefile.am | cut -f 2- -d '=')
+	CFLAGS_APP=$(grep "^${APP}_CFLAGS" Makefile.am | cut -f 2- -d '=')
+	if [ -n "$LDFLAGS_APP" ] ; then
+		LDFLAGS="$LDFLAGS $LDFLAGS_APP"
+	fi
+	if [ -n "$CFLAGS_APP" ] ; then
+		CFLAGS="$CFLAGS $CFLAGS_APP"
+	fi
+fi
+
+#=========================================================
+
+if [ -z "$APP" ] ; then
+	printf "\$APP is empty\n"
+	exit 1
+fi
+
+INCLUDES=''
+CONFIG_MK=''
+if [ -f ../configure ] || [ -f ../configure.ac ] ; then
+	CONFIG_MK='include ../config.mk'
+	INCLUDES='-I..'
+elif [ -f ../../configure ] || [ -f ../../configure.ac ] ; then
+	CONFIG_MK='include ../../config.mk'
+	INCLUDES='-I.. -I../..'
+elif [ -f ../../../configure ] || [ -f ../../../configure.ac ] ; then
+	CONFIG_MK='include ../../../config.mk'
+	INCLUDES='-I.. -I../.. -I../../..'
+fi
+
+if [ -z "$OBJS" ] ; then
+	OBJS=$(ls *.c | sed "s%\.c%.o%g" | tr "\n" " ")
+fi
+
+
+#=========================================================
+#                create Makefile
+#=========================================================
+
+(
+
+echo "${CONFIG_MK}"'
+
+APP  = '${APP}'
+# ls *.c | sed "s%\.c%.o%g" | tr "\n" " " >> Makefile
+OBJS = '${OBJS}'
+
+LDFLAGS += '${LDFLAGS}'
+#CPPFLAGS += '${INCLUDES}'
+CFLAGS += '${INCLUDES}' '${CFLAGS}'
+LIBS   += 
+
+all: $(APP)
+
+$(APP): $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o $(APP) $(LDFLAGS) $(LIBS)
+
+strip: all
+	$(STRIP) $(APP)
+
+distclean: clean
+
+clean:
+	rm -f *.o *~ $(APP) $(APP).exe
+
+install: all
+	mkdir -p $(DESTDIR)$(bindir)
+	install -c $(APP) $(DESTDIR)$(bindir)
+
+install-strip: strip install
+
+uninstall:
+	rm -f $(DESTDIR)$(bindir)/$(APP)
+'
+) > Makefile
+
+echo
+echo "*** Makefile created for app - $APP -"
+echo
+

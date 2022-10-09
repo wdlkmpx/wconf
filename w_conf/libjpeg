@@ -1,0 +1,87 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_LIBJPEG_IS_OPTIONAL=yes [show --disable-libjpeg in --help msg]
+# - W_LIBJPEG_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option libjpeg LIBJPEG
+#=======================================
+
+libjpeg_pc_pkg="libjpeg"
+
+
+opt_print_libjpeg()
+{
+	if [ "$W_LIBJPEG_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-libjpeg           do not build LIBJPEG support (autodetect)"
+	fi
+}
+
+
+opt_configure_libjpeg()
+{
+	if [ "$W_LIBJPEG_IS_OPTIONAL" = "yes" ] ; then
+		enable_libjpeg=check
+	else
+		enable_libjpeg=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-libjpeg)  enable_libjpeg=yes ;;
+		--disable-libjpeg) enable_libjpeg=no ;;
+		esac
+	done
+}
+
+
+opt_check_libjpeg()
+{
+	if [ "$enable_libjpeg" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$LIBJPEG_CFLAGS" ] || [ -n "$LIBJPEG_LIBS" ] ; then
+		echo "Checking for LIBJPEG... \$LIBJPEG_CFLAGS/\$LIBJPEG_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${libjpeg_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_LIBJPEG_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ]  && [ -z "${W_LIBJPEG_MIN_VERSION}" ] ; then
+			w_check_header_and_libs jpeglib.h -ljpeg
+			if [ $? -eq 0 ] ; then
+				#LIBJPEG_CFLAGS=...
+				LIBJPEG_LIBS="-ljpeg"
+				pcpkg=configure
+			fi
+		fi
+		#--
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_libjpeg" = "yes" ] ; then
+				exit_error "pkg-config: libjpeg was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			LIBJPEG_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			LIBJPEG_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have LIBJPEG"
+	config_mk_flags="$config_mk_flags LIBJPEG"
+}
+

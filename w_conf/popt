@@ -1,0 +1,87 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_POPT_IS_OPTIONAL=yes [show --disable-popt in --help msg]
+# - W_POPT_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option popt POPT
+#=======================================
+
+popt_pc_pkg="popt"
+
+
+opt_print_popt()
+{
+	if [ "$W_POPT_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-popt           do not build POPT support (autodetect)"
+	fi
+}
+
+
+opt_configure_popt()
+{
+	if [ "$W_POPT_IS_OPTIONAL" = "yes" ] ; then
+		enable_popt=check
+	else
+		enable_popt=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-popt)  enable_popt=yes ;;
+		--disable-popt) enable_popt=no ;;
+		esac
+	done
+}
+
+
+opt_check_popt()
+{
+	if [ "$enable_popt" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$POPT_CFLAGS" ] || [ -n "$POPT_LIBS" ] ; then
+		echo "Checking for POPT... \$POPT_CFLAGS/\$POPT_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${popt_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_POPT_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ]  && [ -z "${W_POPT_MIN_VERSION}" ] ; then
+			w_check_header_and_libs popt.h -lpopt
+			if [ $? -eq 0 ] ; then
+				#POPT_CFLAGS=...
+				POPT_LIBS="-lpopt"
+				pcpkg=configure
+			fi
+		fi
+		#--
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_popt" = "yes" ] ; then
+				exit_error "pkg-config: popt was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			POPT_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			POPT_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have POPT"
+	config_mk_flags="$config_mk_flags POPT"
+}
+

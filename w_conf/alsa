@@ -1,0 +1,87 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_ALSA_IS_OPTIONAL=yes [show --disable-alsa in --help msg]
+# - W_ALSA_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option alsa ALSA
+#=======================================
+
+alsa_pc_pkg="alsa"
+
+
+opt_print_alsa()
+{
+	if [ "$W_ALSA_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-alsa           do not build ALSA support (autodetect)"
+	fi
+}
+
+
+opt_configure_alsa()
+{
+	if [ "$W_ALSA_IS_OPTIONAL" = "yes" ] ; then
+		enable_alsa=check
+	else
+		enable_alsa=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-alsa)  enable_alsa=yes ;;
+		--disable-alsa) enable_alsa=no ;;
+		esac
+	done
+}
+
+
+opt_check_alsa()
+{
+	if [ "$enable_alsa" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$ALSA_CFLAGS" ] || [ -n "$ALSA_LIBS" ] ; then
+		echo "Checking for ALSA... \$ALSA_CFLAGS/\$ALSA_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${alsa_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_ALSA_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ]  && [ -z "${W_ALSA_MIN_VERSION}" ] ; then
+			w_check_header_and_libs alsa/version.h -lasound
+			if [ $? -eq 0 ] ; then
+				#ALSA_CFLAGS=...
+				ALSA_LIBS="-lasound"
+				pcpkg=configure
+			fi
+		fi
+		#--
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_alsa" = "yes" ] ; then
+				exit_error "pkg-config: alsa was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			ALSA_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			ALSA_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have ALSA"
+	config_mk_flags="$config_mk_flags ALSA"
+}
+

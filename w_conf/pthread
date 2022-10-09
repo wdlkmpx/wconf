@@ -1,0 +1,75 @@
+#!/bin/sh
+# * Public Domain *
+
+# $W_PTHREAD_IS_OPTIONAL
+
+#=======================================
+w_new_option pthread
+#=======================================
+
+opt_print_pthread()
+{
+	if [ "$W_PTHREAD_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-pthread           do not build PTHREAD support (autodetect)"
+	fi
+}
+
+
+opt_configure_pthread()
+{
+	if [ "$W_PTHREAD_IS_OPTIONAL" = "yes" ] ; then
+		enable_pthread='check'
+	else
+		enable_pthread='yes'
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-phtread)  enable_pthread='yes' ;;
+		--disable-phtread) enable_pthread='no'  ;;
+		esac
+	done
+}
+
+
+opt_check_pthread()
+{
+	if [ "$enable_thread" = "no" ] ; then
+		return
+	fi
+
+	printf "Checking for pthread... "
+	ccode='#include <pthread.h>
+int main(void) {
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	return 0;
+}
+'
+	wpthread_found='no'
+	for pthread_lib in -lpthread -lpthreads -lc_r
+	do
+		w_compile_c_code "$ccode" "" "${pthread_lib}"
+		if [ $? = 0 ] ; then
+			echo "yes"
+			LDFLAGS="$LDFLAGS ${pthread_lib}"
+			wpthread_found='yes'
+			break
+		fi
+	done
+
+	if [ "$wpthread_found" = "no" ] ; then
+		echo "no"
+		if [ "$enable_pthread" = "yes" ] ; then
+			exit_error "error: can't find pthread"
+		fi
+	fi
+
+	PTHREAD_CFLAGS="-D_REENTRANT"
+	PTHREAD_LIBS="$pthread_lib"
+
+	config_h_have="$config_h_have PTHREAD"
+	config_mk_flags="$config_mk_flags PTHREAD"
+}

@@ -1,0 +1,157 @@
+#!/bin/sh
+# http://unlicense.org/
+
+#set -x
+
+if ! [ -f configure.project ] ; then
+	echo "This script is mean to run in the same dir as configure.project"
+	exit 1
+fi
+
+if [ -f configure.project.etc ] ; then
+	echo 'Run this script in a different project..'
+	exit 1
+fi
+
+#================================================================
+
+if [ -f .gitignore ] ; then
+	sed -i \
+		-e '/^configure$/d' \
+		-e '/Makefile.*/d' \
+		.gitignore
+	#---
+	for i in config.h config.mk config.log config.sh
+	do
+		if ! grep -q "^${i}\$" .gitignore ; then
+			echo $i >> .gitignore
+		fi
+	done
+fi
+
+#================================================================
+
+make_subdirs()
+{
+	zzmakefiles=$(find . -mindepth 2 -name Makefile | sort)
+	for i in $zzmakefiles
+	do
+		if ! [ -s "$i" ] ; then
+			echo "- $i is empty. ignoring" 1>&2
+			continue
+		fi
+		case $i in */po/*)
+			po=$(ls $(dirname $i)/*.po)
+			if [ -z "$po" ] ; then
+				echo "- $i: there are no .po files. Ignoring" 1>&2
+				continue
+			fi
+			;;
+		esac
+		# proper subdir name
+		echo "$i" | sed -e 's:/Makefile::' -e 's:\./::'
+	done
+}
+
+SUBDIRS=$(make_subdirs | tr '\n' ' ')
+
+if [ -z "$SUBDIRS" ] ; then
+	echo "No suitable subdirs were found... e.g.: /subdir/Makefile"
+	exit 1
+fi
+
+#================================================================
+
+. ./configure.project
+DISTCLEAN="$w_infiles"
+
+#================================================================
+
+case $w_infiles in
+	*.pc)
+		INSTALL_PC='
+	mkdir -p $(DESTDIR)$(libdir)/pkgconfig
+	install -c -m 644 '"${w_infiles}"' $(DESTDIR)$(libdir)/pkgconfig'
+		UNINSTALL_PC='
+	rm -f $(DESTDIR)$(libdir)/pkgconfig/'"$w_infiles"''
+		;;
+esac
+
+
+
+#================================================================
+
+echo '
+SUBDIRS = '"${SUBDIRS}"'
+
+DISTCLEAN_FILES = '"${DISTCLEAN}"'
+
+# ===========================================================
+
+include config.mk
+
+DISTCLEAN_FILES += config.h config.mk config.log config.sh
+
+MAKEFLAGS += --no-print-directory
+
+all:
+	@for dir in ${SUBDIRS} ; do \
+		echo "$(MAKE): Entering directory [$${dir}]"; \
+		$(MAKE) -C $${dir} $@ || exit 1; \
+		echo "$(MAKE): Leaving directory [$${dir}]"; \
+	done
+
+strip:
+	@for dir in ${SUBDIRS} ; do \
+		echo "$(MAKE): Entering directory [$${dir}]"; \
+		$(MAKE) -C $${dir} $@ || exit 1; \
+		echo "$(MAKE): Leaving directory [$${dir}]"; \
+	done
+
+clean:
+	@for dir in ${SUBDIRS} ; do \
+		echo "$(MAKE): Entering directory [$${dir}]"; \
+		$(MAKE) -C $${dir} $@ || exit 1; \
+		echo "$(MAKE): Leaving directory [$${dir}]"; \
+	done
+
+distclean:
+	@for dir in ${SUBDIRS} ; do \
+		echo "$(MAKE): Entering directory [$${dir}]"; \
+		$(MAKE) -C $${dir} $@ || exit 1; \
+		echo "$(MAKE): Leaving directory [$${dir}]"; \
+	done
+	-rm -f $(DISTCLEAN_FILES)
+
+install:
+	@for dir in ${SUBDIRS} ; do \
+		echo "$(MAKE): Entering directory [$${dir}]"; \
+		$(MAKE) -C $${dir} $@ || exit 1; \
+		echo "$(MAKE): Leaving directory [$${dir}]"; \
+	done'"${INSTALL_PC}"'
+
+install-strip:
+	@for dir in ${SUBDIRS} ; do \
+		echo "$(MAKE): Entering directory [$${dir}]"; \
+		$(MAKE) -C $${dir} $@ || exit 1; \
+		echo "$(MAKE): Leaving directory [$${dir}]"; \
+	done'"${INSTALL_PC}"'
+
+uninstall:
+	@for dir in ${SUBDIRS} ; do \
+		echo "$(MAKE): Entering directory [$${dir}]"; \
+		$(MAKE) -C $${dir} $@ || exit 1; \
+		echo "$(MAKE): Leaving directory [$${dir}]"; \
+	done'"${UNINSTALL_PC}"'
+
+check:
+
+distcheck:
+
+installcheck:
+
+dist:
+	sh configure release dist
+
+.PHONY: subdirs $(SUBDIRS)
+' > Makefile

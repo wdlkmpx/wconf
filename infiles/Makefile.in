@@ -1,0 +1,26 @@
+
+#include ../config.mk
+
+gftp:
+	@sh $(top_srcdir)/w_conf/00_standard_infile.sh gftp
+
+all: gftp
+
+strip:
+
+install:
+	mkdir -p $(DESTDIR)$(bindir)
+	install -c gftp $(DESTDIR)$(bindir)
+
+install-strip: install
+
+uninstall:
+	rm -f $(DESTDIR)$(bindir)/gftp
+
+clean:
+	rm -f gftp
+
+distclean:
+	rm -f gftp
+
+

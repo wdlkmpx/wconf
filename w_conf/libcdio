@@ -1,0 +1,87 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_LIBCDIO_IS_OPTIONAL=yes [show --disable-libcdio in --help msg]
+# - W_LIBCDIO_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option libcdio LIBCDIO
+#=======================================
+
+libcdio_pc_pkg="libcdio"
+
+
+opt_print_libcdio()
+{
+	if [ "$W_LIBCDIO_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-libcdio           do not build LIBCDIO support (autodetect)"
+	fi
+}
+
+
+opt_configure_libcdio()
+{
+	if [ "$W_LIBCDIO_IS_OPTIONAL" = "yes" ] ; then
+		enable_libcdio=check
+	else
+		enable_libcdio=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-libcdio)  enable_libcdio=yes ;;
+		--disable-libcdio) enable_libcdio=no ;;
+		esac
+	done
+}
+
+
+opt_check_libcdio()
+{
+	if [ "$enable_libcdio" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$LIBCDIO_CFLAGS" ] || [ -n "$LIBCDIO_LIBS" ] ; then
+		echo "Checking for LIBCDIO... \$LIBCDIO_CFLAGS/\$LIBCDIO_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${libcdio_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_LIBCDIO_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ]  && [ -z "${W_LIBCDIO_MIN_VERSION}" ] ; then
+			w_check_header_and_libs cdio/cdio.h -lcdio
+			if [ $? -eq 0 ] ; then
+				#LIBCDIO_CFLAGS=...
+				LIBCDIO_LIBS="-lcdio"
+				pcpkg=configure
+			fi
+		fi
+		#--
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_libcdio" = "yes" ] ; then
+				exit_error "pkg-config: libcdio was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			LIBCDIO_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			LIBCDIO_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have LIBCDIO"
+	config_mk_flags="$config_mk_flags LIBCDIO"
+}
+

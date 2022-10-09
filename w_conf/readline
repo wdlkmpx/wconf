@@ -1,0 +1,87 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_READLINE_IS_OPTIONAL=yes [show --disable-readline in --help msg]
+# - W_READLINE_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option readline READLINE
+#=======================================
+
+readline_pc_pkg="readline"
+
+
+opt_print_readline()
+{
+	if [ "$W_READLINE_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-readline           do not build READLINE support (autodetect)"
+	fi
+}
+
+
+opt_configure_readline()
+{
+	if [ "$W_READLINE_IS_OPTIONAL" = "yes" ] ; then
+		enable_readline=check
+	else
+		enable_readline=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-readline)  enable_readline=yes ;;
+		--disable-readline) enable_readline=no ;;
+		esac
+	done
+}
+
+
+opt_check_readline()
+{
+	if [ "$enable_readline" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$READLINE_CFLAGS" ] || [ -n "$READLINE_LIBS" ] ; then
+		echo "Checking for READLINE... \$READLINE_CFLAGS/\$READLINE_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${readline_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_READLINE_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ]  && [ -z "${W_READLINE_MIN_VERSION}" ] ; then
+			w_check_header_and_libs readline/readline.h -lreadline
+			if [ $? -eq 0 ] ; then
+				#READLINE_CFLAGS=...
+				READLINE_LIBS="-lreadline"
+				pcpkg=configure
+			fi
+		fi
+		#--
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_readline" = "yes" ] ; then
+				exit_error "pkg-config: readline was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			READLINE_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			READLINE_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have READLINE"
+	config_mk_flags="$config_mk_flags READLINE"
+}
+

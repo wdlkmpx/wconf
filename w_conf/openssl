@@ -1,0 +1,87 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_OPENSSL_IS_OPTIONAL=yes [show --disable-openssl in --help msg]
+# - W_OPENSSL_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option openssl OPENSSL
+#=======================================
+
+openssl_pc_pkg="openssl"
+
+
+opt_print_openssl()
+{
+	if [ "$W_OPENSSL_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-openssl           do not build OPENSSL support (autodetect)"
+	fi
+}
+
+
+opt_configure_openssl()
+{
+	if [ "$W_OPENSSL_IS_OPTIONAL" = "yes" ] ; then
+		enable_openssl=check
+	else
+		enable_openssl=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-openssl)  enable_openssl=yes ;;
+		--disable-openssl) enable_openssl=no ;;
+		esac
+	done
+}
+
+
+opt_check_openssl()
+{
+	if [ "$enable_openssl" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$OPENSSL_CFLAGS" ] || [ -n "$OPENSSL_LIBS" ] ; then
+		echo "Checking for OPENSSL... \$OPENSSL_CFLAGS/\$OPENSSL_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${openssl_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_OPENSSL_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ]  && [ -z "${W_OPENSSL_MIN_VERSION}" ] ; then
+			w_check_header_and_libs openssl/ssl.h -lssl -lcrypto
+			if [ $? -eq 0 ] ; then
+				#OPENSSL_CFLAGS=...
+				OPENSSL_LIBS="-lssl -lcrypto"
+				pcpkg=configure
+			fi
+		fi
+		#--
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_openssl" = "yes" ] ; then
+				exit_error "pkg-config: openssl was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			OPENSSL_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			OPENSSL_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have OPENSSL"
+	config_mk_flags="$config_mk_flags OPENSSL"
+}
+

@@ -1,0 +1,78 @@
+#!/bin/sh
+# Public Domain
+
+# optional variables to set before sourcing this script
+#
+# - W_GTHREAD_IS_OPTIONAL=yes [show --disable-gthread in --help msg]
+# - W_GTHREAD_MIN_VERSION=xxx [minimun supported version, .pc file is required]
+#
+
+#=======================================
+w_new_option gthread GTHREAD
+#=======================================
+
+gthread_pc_pkg="gthread-2.0"
+
+
+opt_print_gthread()
+{
+	if [ "$W_GTHREAD_IS_OPTIONAL" = "yes" ] ; then
+		echo "  --disable-gthread           do not build GTHREAD support (autodetect)"
+	fi
+}
+
+
+opt_configure_gthread()
+{
+	if [ "$W_GTHREAD_IS_OPTIONAL" = "yes" ] ; then
+		enable_gthread=check
+	else
+		enable_gthread=yes
+		return
+	fi
+
+	for i in $@
+	do
+		case $i in
+		--enable-gthread)  enable_gthread=yes ;;
+		--disable-gthread) enable_gthread=no ;;
+		esac
+	done
+}
+
+
+opt_check_gthread()
+{
+	if [ "$enable_gthread" = "no" ] ; then
+		return
+	fi
+
+	if [ -n "$GTHREAD_CFLAGS" ] || [ -n "$GTHREAD_LIBS" ] ; then
+		echo "Checking for GTHREAD... \$GTHREAD_CFLAGS/\$GTHREAD_LIBS"
+	else
+		pcpkg=
+		for onepkg in ${gthread_pc_pkg}
+		do
+			if w_pkgconfig_check ${onepkg} ${W_GTHREAD_MIN_VERSION} ; then
+				pcpkg=${onepkg}
+				break
+			fi
+		done
+
+		if [ -z "$pcpkg" ] ; then
+			if [ "$enable_gthread" = "yes" ] ; then
+				exit_error "pkg-config: gthread was not found"
+			fi
+			return
+		fi
+		if [ ! -f "$pcpkg" ] ; then
+			# $pcpkg must not be a file, otherwise it is a custom xxx-config file
+			GTHREAD_CFLAGS="$(run_pkg_config ${pcpkg} --cflags 2>/dev/null)"
+			GTHREAD_LIBS="$(run_pkg_config ${pcpkg} --libs 2>/dev/null)"
+		fi
+	fi
+
+	config_h_have="$config_h_have GTHREAD"
+	config_mk_flags="$config_mk_flags GTHREAD"
+}
+

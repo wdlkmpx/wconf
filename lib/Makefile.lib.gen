@@ -1,0 +1,192 @@
+#!/bin/sh
+# http://unlicense.org/
+
+#set -x
+
+LIB=$1
+LIB_STATIC=''
+LIB_SHARED=''
+OBJS=''
+
+STATIC_ONLY='no'
+
+#==============================
+# manual example
+#LIB='libfspclient'
+#LIB='libfspclient.a'
+#--
+#SHARED_A='0'
+#SHARED_B='0'
+#SHARED_C='0'
+#LIB_NO_INSTALL=1
+
+#=========================================================
+# try to determine library name from Makefile.am
+# first fix it to avoid \ (keep all assignments in a single line)
+
+if [ -f Makefile.am ] ; then
+	echo "Using Makefile.am to determine library name"
+	if ! grep '^noinst_LIBRARIES' Makefile.am ; then
+		echo "Makefile.am doesn't contain 'noinst_LIBRARIES='"
+		exit 1
+	fi
+	noinst_libs=$(grep '^noinst_LIBRARIES' Makefile.am | cut -f 2 -d '=')
+	if [ -z "$noinst_libs" ] ; then
+		echo "Error getting library name"
+		exit 1
+	fi
+	if [ $(echo $noinst_libs | wc -w) -gt 1 ] ; then
+		echo "Only 1 lib is supported at the time"
+		exit 1
+	fi
+	# remove spaces from $noinst_libs
+	LIB=$(echo $noinst_libs)
+	LIB_NO_INSTALL=1
+	LIB_NO_APP=1
+	OBJS=$(grep '_a_SOURCES' Makefile.am | sed "s%\.c%.o%g" | cut -f 2 -d '=')
+fi
+
+#=========================================================
+
+if [ -z "$LIB" ] ; then
+	printf "\$LIB is empty\n"
+	exit 1
+fi
+
+case $LIB in
+	*.a)
+		STATIC_ONLY='yes'
+		LIB_STATIC="$LIB"
+		;;
+	*.*)
+		echo "Please don't include .*"
+		exit 1
+		;;
+	*)
+		LIB_STATIC=${LIB}.a
+		LIB_SHARED=${LIB}.so
+		SONAME=${LIB_SHARED}
+		OUTPUT_SO=${LIB_SHARED}
+		if [ -n "$SHARED_A" ] ; then
+			LIB_SHARED_1=${LIB}.so.${SHARED_A}
+			SONAME=${LIB_SHARED_1}
+			OUTPUT_SO=${LIB_SHARED_1}
+		fi
+		if [ -n "$SHARED_B" ] ; then
+			LIB_SHARED_2=${LIB}.so.${SHARED_A}.${SHARED_B}
+			OUTPUT_SO=${LIB_SHARED_2}
+		fi
+		if [ -n "$SHARED_C" ] ; then
+			LIB_SHARED_3=${LIB}.so.${SHARED_A}.${SHARED_B}.${SHARED_C}
+			OUTPUT_SO=${LIB_SHARED_3}
+		fi
+		SONAME_LINKER="-Wl,-soname -Wl,${SONAME}"
+		;;
+esac
+
+
+if [ -z "$LIB_NO_INSTALL" ] ; then
+	LIB_STATIC_INSTALL='
+	mkdir -p $(DESTDIR)$(libdir)
+	install -c $(LIB_STATIC) $(DESTDIR)$(libdir)'
+	LIB_STATIC_UNINSTALL='	rm -f $(DESTDIR)$(libdir)/$(LIB_STATIC)*'
+	if [ -n "$LIB_SHARED" ] ; then
+		LIB_SHARED_INSTALL='
+	mkdir -p $(DESTDIR)$(libdir)
+	install -c $(LIB_SHARED)* $(DESTDIR)$(libdir)'
+		LIB_SHARED_UNINSTALL='	rm -f $(DESTDIR)$(libdir)/$(LIB_SHARED)*'
+	fi
+fi
+
+
+INCLUDES=''
+CONFIG_MK=''
+if [ -f ../configure ] || [ -f ../configure.ac ] ; then
+	CONFIG_MK='include ../config.mk'
+	INCLUDES='-I..'
+elif [ -f ../../configure ] || [ -f ../../configure.ac ] ; then
+	CONFIG_MK='include ../../config.mk'
+	INCLUDES='-I.. -I../..'
+elif [ -f ../../../configure ] || [ -f ../../../configure.ac ] ; then
+	CONFIG_MK='include ../../../config.mk'
+	INCLUDES='-I.. -I../.. -I../../..'
+fi
+
+if [ -z "$OBJS" ] ; then
+	OBJS=$(ls *.c | sed "s%\.c%.o%g" | tr "\n" " ")
+fi
+
+if [ -n "$LIB_SHARED" ] ; then
+	LIB_SHARED_DEF="LIB_SHARED = ${LIB_SHARED}"
+	LIB_SHARED_DEC='
+	$(LIB_SHARED): $(OBJS)
+	$(CC) -shared $(CFLAGS) $(OBJS) '"${SONAME_LINKER}"' -o $(LIB_SHARED) $(LDFLAGS) $(LIBS)'
+	if [ -n "${LIB_SHARED_2}" ] ; then
+		LIB_SHARED_DEC="$LIB_SHARED_DEC
+	mv ${LIB_SHARED} ${LIB_SHARED_2}
+	rm -f ${LIB_SHARED_1}
+	ln -s ${LIB_SHARED_2} ${LIB_SHARED_1}
+	ln -s ${LIB_SHARED_2} ${LIB_SHARED}
+"
+	elif [ -n "${LIB_SHARED_3}" ] ; then
+		LIB_SHARED_DEC="$LIB_SHARED_DEC
+	mv ${LIB_SHARED} ${LIB_SHARED_3}
+	rm -f ${LIB_SHARED_2} ${LIB_SHARED_1}
+	ln -s ${LIB_SHARED_3} ${LIB_SHARED_2}
+	ln -s ${LIB_SHARED_3} ${LIB_SHARED_1}
+	ln -s ${LIB_SHARED_3} ${LIB_SHARED}
+"
+	fi
+fi
+
+# 
+if [ -z "$LIB_NO_APP" ] ; then
+	LIB_APPS='test-static test-shared'
+	LIB_APP_BUILD='
+test-static: $(LIB_STATIC)
+	$(CC) $(CFLAGS) test.c -o $@ $(LDFLAGS) $(LIBS) $(LIB_STATIC)'
+	if [ -n "$LIB_SHARED" ] ; then
+		LIB_APP_BUILD="${LIB_APP_BUILD}"'
+test-shared: $(LIB_SHARED)
+	$(CC) $(CFLAGS) test.c -o $@ $(LDFLAGS) $(LIBS) $(LIB_SHARED)'
+	fi
+fi
+
+#=========================================================
+#                create Makefile
+#=========================================================
+
+(
+
+echo "${CONFIG_MK}"'
+
+LIB_STATIC = '${LIB_STATIC}'
+'"${LIB_SHARED_DEF}"'
+# ls *.c | sed "s%\.c%.o%g" | tr "\n" " " >> Makefile
+OBJS = '${OBJS}'
+
+#CPPFLAGS += '${INCLUDES}'
+CFLAGS += '${INCLUDES}'
+LIBS   += 
+
+all: $(LIB_STATIC) '${LIB_SHARED}' '${LIB_APPS}'
+'"${LIB_SHARED_DEC}"'
+$(LIB_STATIC): $(OBJS)
+	$(AR) rcs $(LIB_STATIC) $(OBJS)
+'"${LIB_APP_BUILD}"'
+strip:
+
+distclean: clean
+
+clean:
+	rm -f *.o *~ *.a *.so '"${LIB_APPS}"'
+
+install: $(LIB_STATIC)'"${LIB_STATIC_INSTALL}${LIB_SHARED_INSTALL}"'
+
+install-strip: install
+
+uninstall:
+'"${LIB_STATIC_UNINSTALL}
+${LIB_SHARED_UNINSTALL}"'
+'
+) > Makefile
