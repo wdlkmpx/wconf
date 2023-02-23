@@ -51,7 +51,9 @@ opt_check_vte()
 		exit_error "\$gtkpc is not set, gtk must be evaluated first"
 	fi
 
-	if [ "$gtkpc" = "gtk+-2.0" ] ; then
+	if [ "$gtkpc" = "gtk1" ] ; then
+        return
+	elif [ "$gtkpc" = "gtk+-2.0" ] ; then
 		vte_pc_pkg="vte"
 	else
 		# gtk+-3.0 / gtk4

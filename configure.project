@@ -4,6 +4,7 @@
 PACKAGE="app"
 VERSION="1.0"
 PACKAGE_URL=''
+MAKE_CHECK_CMD=''
 
 # Flags that will be used in all makefiles that compile code...
 PROJECT_CFLAGS='-Wall -g -O2' # -Wextra -Wno-unused-parameter -Wno-missing-field-initializers

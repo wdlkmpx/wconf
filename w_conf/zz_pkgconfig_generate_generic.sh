@@ -212,6 +212,6 @@ if [ -n "$zlist" ] ; then
 	echo '
 W_'${zw_env}'_IS_OPTIONAL=yes
 #W_'${zw_env}'_MIN_VERSION=
-. w_conf/'${zw_pkg}'' >> ${zlist}
+include '${zw_pkg}'' >> ${zlist}
 fi
 
