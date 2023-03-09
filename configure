@@ -283,30 +283,33 @@ w_pkgconfig_check() # $1=<pkg> $2=[min-version]
 	fi
 	if [ -z "$W_PKG_CONFIG" ] ; then
 		echo "no (!!pkg-config is missing!!)"
-		return 1
+		return 1  #error
 	fi
 	#--
-	if [ -n "$pc_pkg_min_ver" ] ; then
-		run_pkg_config ${pc_pkg} --exists --atleast-version=${pc_pkg_min_ver}
-	else
-		run_pkg_config ${pc_pkg} --exists
+	run_pkg_config ${pc_pkg} --exists
+	if [ $? -ne 0 ] ; then
+		echo "no"
+		return 1  #error
 	fi
-	xret=$?
-	if [ $xret -eq 0 ] ; then
-		echo "yes [$(run_pkg_config ${pc_pkg} --modversion)]"
-	else
-		if [ -n "$pc_pkg_min_ver" ] ; then
-			xxzzfound=$(run_pkg_config ${pc_pkg} --modversion 2>/dev/null)
-			if [ -n "$xxzzfound" ] ; then
-				echo "no [found $xxzzfound]"
+	xpkgverx="$(run_pkg_config ${pc_pkg} --modversion 2>/dev/null)"
+	if [ -n "$pc_pkg_min_ver" ] ; then
+		run_pkg_config ${pc_pkg} --atleast-version=${pc_pkg_min_ver}
+		if [ $? -ne 0 ] ; then
+			if [ -n "$xpkgverx" ] ; then
+				echo "no [found $xpkgverx]"
+				return 1  #error
 			else
 				echo "no"
+				return 1  #error
 			fi
-		else
-			echo "no"
 		fi
 	fi
-	return $xret
+	if [ -n "$xpkgverx" ] ; then
+		echo "yes [${xpkgverx}]"
+	else
+		echo "yes"
+	fi
+	return 0  #ok
 }
 
 
